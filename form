@@ -1,0 +1,213 @@
+import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useMutation } from "@tanstack/react-query";
+import { Search } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
+import { searchMedicationSchema, type SearchMedication, type Medication } from "@shared/schema";
+
+const colors = [
+  { value: "white", color: "bg-white", border: "border-gray-300" },
+  { value: "red", color: "bg-red-500", border: "border-red-500" },
+  { value: "blue", color: "bg-blue-500", border: "border-blue-500" },
+  { value: "green", color: "bg-green-500", border: "border-green-500" },
+  { value: "yellow", color: "bg-yellow-400", border: "border-yellow-400" },
+  { value: "purple", color: "bg-purple-500", border: "border-purple-500" },
+  { value: "pink", color: "bg-pink-500", border: "border-pink-500" },
+  { value: "black", color: "bg-gray-800", border: "border-gray-800" },
+];
+
+interface DrugIdentificationFormProps {
+  onSearch: (criteria: SearchMedication, results: Medication[]) => void;
+}
+
+export default function DrugIdentificationForm({ onSearch }: DrugIdentificationFormProps) {
+  const [selectedColor, setSelectedColor] = useState<string>("");
+  const { toast } = useToast();
+
+  const form = useForm<SearchMedication>({
+    resolver: zodResolver(searchMedicationSchema),
+    defaultValues: {
+      shape: "",
+      color: "",
+      imprint: "",
+      size: "",
+    },
+  });
+
+  const searchMutation = useMutation({
+    mutationFn: async (data: SearchMedication) => {
+      const res = await apiRequest("POST", "/api/medications/search", data);
+      return res.json();
+    },
+    onSuccess: (results: Medication[], variables) => {
+      onSearch(variables, results);
+      if (results.length === 0) {
+        toast({
+          title: "No Results Found",
+          description: "Try adjusting your search criteria or contact a healthcare professional.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Search Complete",
+          description: `Found ${results.length} potential matches`,
+        });
+      }
+    },
+    onError: (error) => {
+      toast({
+        title: "Search Failed",
+        description: "Unable to search medications. Please try again.",
+        variant: "destructive",
+      });
+      console.error("Search error:", error);
+    },
+  });
+
+  const onSubmit = (data: SearchMedication) => {
+    // Include selected color in form data
+    const searchData = { ...data, color: selectedColor };
+    searchMutation.mutate(searchData);
+  };
+
+  return (
+    <Card className="bg-white shadow-sm border border-gray-200">
+      <CardHeader>
+        <CardTitle className="text-xl font-semibold text-gray-900">Drug Identification Form</CardTitle>
+        <p className="text-sm text-medical-gray">Enter the physical characteristics of the medication</p>
+      </CardHeader>
+      <CardContent>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            {/* Shape Selection */}
+            <FormField
+              control={form.control}
+              name="shape"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-sm font-medium text-gray-700">Shape</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select shape" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="round">Round</SelectItem>
+                      <SelectItem value="oval">Oval</SelectItem>
+                      <SelectItem value="capsule">Capsule</SelectItem>
+                      <SelectItem value="square">Square</SelectItem>
+                      <SelectItem value="diamond">Diamond</SelectItem>
+                      <SelectItem value="triangle">Triangle</SelectItem>
+                      <SelectItem value="other">Other</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Color Selection */}
+            <div>
+              <Label className="text-sm font-medium text-gray-700 mb-2 block">Primary Color</Label>
+              <div className="grid grid-cols-4 gap-2">
+                {colors.map((color) => (
+                  <button
+                    key={color.value}
+                    type="button"
+                    className={`w-12 h-12 ${color.color} border-2 ${
+                      selectedColor === color.value ? "border-medical-blue" : color.border
+                    } rounded-md hover:border-medical-blue focus:outline-none focus:border-medical-blue transition-colors`}
+                    onClick={() => setSelectedColor(color.value)}
+                  />
+                ))}
+              </div>
+            </div>
+
+            {/* Imprint Text */}
+            <FormField
+              control={form.control}
+              name="imprint"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-sm font-medium text-gray-700">Imprint/Text</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder="Enter numbers or letters on pill"
+                      {...field}
+                      className="w-full"
+                    />
+                  </FormControl>
+                  <p className="text-xs text-medical-gray">Include numbers, letters, or symbols visible on the medication</p>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Size */}
+            <FormField
+              control={form.control}
+              name="size"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-sm font-medium text-gray-700">Approximate Size</FormLabel>
+                  <FormControl>
+                    <RadioGroup onValueChange={field.onChange} defaultValue={field.value}>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="small" id="small" />
+                          <Label htmlFor="small" className="text-sm">Small (≤8mm)</Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="medium" id="medium" />
+                          <Label htmlFor="medium" className="text-sm">Medium (8-12mm)</Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="large" id="large" />
+                          <Label htmlFor="large" className="text-sm">Large ({'>'}12mm)</Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="unknown" id="unknown" />
+                          <Label htmlFor="unknown" className="text-sm">Unknown</Label>
+                        </div>
+                      </div>
+                    </RadioGroup>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Search Button */}
+            <Button
+              type="submit"
+              className="w-full bg-medical-blue text-white hover:bg-blue-700 py-3"
+              disabled={searchMutation.isPending}
+            >
+              <Search className="inline-block w-5 h-5 mr-2" />
+              {searchMutation.isPending ? "Searching..." : "Search Database"}
+            </Button>
+
+            {/* Advanced Search */}
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full bg-gray-100 text-medical-gray hover:bg-gray-200"
+            >
+              Advanced Search Options
+            </Button>
+          </form>
+        </Form>
+      </CardContent>
+    </Card>
+  );
+}
