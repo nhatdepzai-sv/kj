@@ -1,0 +1,78 @@
+import { medications, type Medication, type InsertMedication, type SearchMedication, users, type User, type InsertUser } from "@shared/schema";
+import { db } from "./db";
+import { eq, and, like, ilike } from "drizzle-orm";
+
+export interface IStorage {
+  getUser(id: number): Promise<User | undefined>;
+  getUserByUsername(username: string): Promise<User | undefined>;
+  createUser(user: InsertUser): Promise<User>;
+  getMedication(id: number): Promise<Medication | undefined>;
+  getAllMedications(): Promise<Medication[]>;
+  searchMedications(criteria: SearchMedication): Promise<Medication[]>;
+  createMedication(medication: InsertMedication): Promise<Medication>;
+}
+
+export class DatabaseStorage implements IStorage {
+  async getUser(id: number): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user || undefined;
+  }
+
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.username, username));
+    return user || undefined;
+  }
+
+  async createUser(insertUser: InsertUser): Promise<User> {
+    const [user] = await db
+      .insert(users)
+      .values(insertUser)
+      .returning();
+    return user;
+  }
+
+  async getMedication(id: number): Promise<Medication | undefined> {
+    const [medication] = await db.select().from(medications).where(eq(medications.id, id));
+    return medication || undefined;
+  }
+
+  async getAllMedications(): Promise<Medication[]> {
+    return await db.select().from(medications);
+  }
+
+  async searchMedications(criteria: SearchMedication): Promise<Medication[]> {
+    const conditions = [];
+    
+    if (criteria.shape && criteria.shape !== "") {
+      conditions.push(eq(medications.shape, criteria.shape));
+    }
+    
+    if (criteria.color && criteria.color !== "") {
+      conditions.push(ilike(medications.color, `%${criteria.color}%`));
+    }
+    
+    if (criteria.imprint && criteria.imprint !== "") {
+      conditions.push(ilike(medications.imprint, `%${criteria.imprint}%`));
+    }
+    
+    if (criteria.size && criteria.size !== "") {
+      conditions.push(eq(medications.size, criteria.size));
+    }
+    
+    if (conditions.length === 0) {
+      return await db.select().from(medications);
+    }
+    
+    return await db.select().from(medications).where(and(...conditions));
+  }
+
+  async createMedication(insertMedication: InsertMedication): Promise<Medication> {
+    const [medication] = await db
+      .insert(medications)
+      .values(insertMedication)
+      .returning();
+    return medication;
+  }
+}
+
+export const storage = new DatabaseStorage();
